@@ -88,7 +88,7 @@ p + geom_point(size=5, alpha = 0.7) + geom_text(mapping=aes(label=cell), vjust =
 #Remove OTUs that do not show appear more than 5 times in more than half the samples
 wh0 = genefilter_sample(ps1, filterfun_sample(function(x) x > 5), A = 0.5 * nsamples(ps1))
 ps2= prune_taxa(wh0, ps1)
-#Transform to even sampling depth.
+#Transform sample counts to relative abundance.
 ps2 = transform_sample_counts(ps2, function(x) 1e+06 * x/sum(x))
 #ps2 = transform_sample_counts(ps1, function(x) 1e+06 * x/sum(x)) #run this insead of prev line if you don't want to remove rare taxa
 #Keep only the most abundant nine phyla.
