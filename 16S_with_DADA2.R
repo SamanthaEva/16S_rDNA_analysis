@@ -72,13 +72,17 @@ p+ geom_point(size=5, alpha = 0.7)
 tree=rtree(ntaxa(ps), rooted = TRUE, tip.label = taxa_names(ps))
 #add tree to phyloseq object
 ps1=merge_phyloseq(ps,tree)
+#remove sample 19, which only had 6000 sequences
+ps1 <- prune_samples(sample_sums(ps1)>=7000, ps1)
+#rarify for beta diversity
+eso = rarefy_even_depth(ps1)
 #perform ordination
 ordu = ordinate(ps1, "PCoA", "unifrac", weighted=TRUE)
 #p=plot_ordination(ps1, ordu, color = "Location", shape = "seed_or_sample", label="cell", title = "PCoA of unweighted unifrac distance matrix, untrimmed data")
 #p+ geom_point(size=5, alpha = 0.7) 
 
 #plot ordination
-p=plot_ordination(ps1, ordu, color = "Location", shape = "seed_or_sample",  title = "PCoA of weighted unifrac distance matrix, untrimmed data")
+p=plot_ordination(eso, ordu, color = "Location", shape = "seed_or_sample",  title = "PCoA of weighted unifrac distance matrix, rarified data")
 p + geom_point(size=5, alpha = 0.7) + geom_text(mapping=aes(label=cell), vjust = 2.0)
 
 #p + theme_bw() + geom_text(mapping = aes(label = cell), size = 10, vjust = 1.5) theme(text = element_text(size = 16)) + geom_point(size = 4)
@@ -87,6 +91,9 @@ p + geom_point(size=5, alpha = 0.7) + geom_text(mapping=aes(label=cell), vjust =
 #Previous results were with the raw output from dada2.  Next test is to trim data before ordination.  Not sure I need to do much besides rarify but we'll see.
 #Remove OTUs that do not show appear more than 5 times in more than half the samples
 wh0 = genefilter_sample(ps1, filterfun_sample(function(x) x > 5), A = 0.5 * nsamples(ps1))
+
+eso = rarefy_even_depth(esophagus)
+
 ps2= prune_taxa(wh0, ps1)
 #Transform sample counts to relative abundance.
 ps2 = transform_sample_counts(ps2, function(x) 1e+06 * x/sum(x))
