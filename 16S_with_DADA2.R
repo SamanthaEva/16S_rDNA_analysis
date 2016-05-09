@@ -60,6 +60,7 @@ write.csv(taxa_gg, file = "~/Documents/andy/fastq/taxa_gg.csv")
 
 #A better way to bring in sample names and metadata is with a metadata file.
 meta <- read.csv("~/Documents/andy/fastq/meta.csv", row.names=1) #csv with meta data
+meta$cell_short<-substr(meta$cell,1,1)#add short version of cell
 #invoke phyloseq
 ps <- phyloseq(otu_table(seqtab.nochim, taxa_are_rows=FALSE), 
                sample_data(meta), 
@@ -92,7 +93,7 @@ p + geom_point(size=5, alpha = 0.7) + geom_text(mapping=aes(label=cell), vjust =
 #Remove OTUs that do not show appear more than 5 times in more than half the samples
 wh0 = genefilter_sample(ps1, filterfun_sample(function(x) x > 5), A = 0.5 * nsamples(ps1))
 
-eso = rarefy_even_depth(esophagus)
+
 
 ps2= prune_taxa(wh0, ps1)
 #Transform sample counts to relative abundance.
@@ -109,26 +110,38 @@ q + geom_point(size=5, alpha = 0.7) + geom_text(mapping=aes(label=cell), vjust =
 
 
 #code below looks at multiple ordination methods.  Need to make output prettier.
-dist = "bray"
+dist = "wunifrac"
 ord_meths = c("DCA", "CCA", "RDA", "DPCoA", "NMDS", "MDS", "PCoA")
 plist = llply(as.list(ord_meths), function(i, physeq, dist) {
   ordi = ordinate(physeq, method = i, distance = dist)
-  plot_ordination(physeq, ordi, "samples", color = "Location", shape = "seed_or_sample", label = "cell")
-}, ps2, dist)
+  plot_ordination(physeq, ordi, "samples", color = "Location", shape = "Date_of_Sample", label = "cell")
+}, eso2, dist)
 names(plist) <- ord_meths
 
 pdataframe = ldply(plist, function(x) {
-  df = x$data[, 1:2]
-  colnames(df) = c("Axis_1", "Axis_2")
+  df = x$data[, 1:3]
+  colnames(df) = c("Axis_1", "Axis_2", "Axis_3")
   return(cbind(df, x$data))
 })
 names(pdataframe)[1] = "method"
 
-p = ggplot(pdataframe, aes(Axis_1, Axis_2, color = Location, shape = seed_or_sample, 
+p = ggplot(pdataframe, aes(Axis_1, Axis_2, color = Location, shape = Date_of_Sample, 
                            label = cell))
-p = p + geom_point(size = 4) + geom_polygon()
+p = p + geom_point(size = 4)# + geom_polygon()
 p = p + facet_wrap(~method, scales = "free")
 p = p + scale_fill_brewer(type = "qual", palette = "Set1")
 p = p + scale_colour_brewer(type = "qual", palette = "Set1")
 p
+#############################################################
+#gap analysis
 
+pam1 = function(x, k) {
+  list(cluster = pam(x, k, cluster.only = TRUE))
+}
+x = phyloseq:::scores.pcoa(ordu, display = "sites")
+# gskmn = clusGap(x[, 1:2], FUN=kmeans, nstart=20, K.max = 6, B = 500)
+gskmn = clusGap(x[, 1:2], FUN = pam1, K.max = 10, B = 100)
+gskmn
+##############################################################
+#look at alpha diversity, MP samples only
+ps3 = subset_samples(ps1, Location=="MP")
