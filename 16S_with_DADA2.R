@@ -51,7 +51,7 @@ colnames(taxa_gg) <- c("Kingdom", "Phylum", "Class", "Order", "Family", "Genus",
 seqtab_nochim_T<-t(seqtab.nochim)
 write.csv(seqtab_nochim_T, file = "~/Documents/andy/fastq/seqtab_nochim_T_gg.csv")
 write.csv(taxa_gg, file = "~/Documents/andy/fastq/taxa_gg.csv")
-
+write.csv(seqtab.nochim, file = "~/Documents/andy/fastq/seqtab_nochim_gg.csv")
 #one way to add sample info is from the sample name.  In our case the sample names are AP-1, AP-2, etc.
 #result is not very informative but could be with better sample nomenclature
 # samples.out <- rownames(seqtab.nochim)
@@ -59,11 +59,11 @@ write.csv(taxa_gg, file = "~/Documents/andy/fastq/taxa_gg.csv")
 # samdf<-data.frame(Sample=sample)
 
 #A better way to bring in sample names and metadata is with a metadata file.
-meta <- read.csv("~/Documents/andy/fastq/meta.csv", row.names=1) #csv with meta data
+meta <- read.csv("~/Documents/andy/fastq/meta_no19.csv", row.names=1) #csv with meta data
 meta$cell_short<-substr(meta$cell,1,1)#add short version of cell
 #invoke phyloseq
 ps <- phyloseq(otu_table(seqtab.nochim, taxa_are_rows=FALSE), 
-               sample_data(meta), 
+               sample_data(meta2), 
                tax_table(taxa_gg))
 #plot alpha diversity
 p=plot_richness(ps, measures=c("Shannon", "Simpson"), color="Reason_for_Sample") + theme_bw()
@@ -145,3 +145,38 @@ gskmn
 ##############################################################
 #look at alpha diversity, MP samples only
 ps3 = subset_samples(ps1, Location=="MP")
+
+###############################################################
+#adonis
+#in excel I re-ordered the meta data to match the unifrac distance matrix
+meta_no19_sort <- read.csv("~/meta_no19_sort.csv", row.names=1)eso = rarefy_even_depth(ps1)
+meta_no19_sort$cell_short<-substr(meta_no19_sort$cell,1,1)#add short version of cell
+ps1=merge_phyloseq(ps,tree)
+eso = rarefy_even_depth(ps1)
+eso2 = transform_sample_counts(eso, function(x) 1e+06 * x/sum(x))
+ufrac<-UniFrac(eso2, weighted=TRUE, normalized=TRUE, parallel=FALSE, fast=TRUE)
+q=as.matrix(ufrac)
+
+Loc_adonis<-adonis(q~meta_no19_sort$Location,permutations=999)
+cell_adonis<-adonis(q~meta_no19_sort$cell,permutations=999)
+date_adonis<-adonis(q~meta_no19_sort$Date_of_Sample,permutations=999)
+cell_s_adonis<-adonis(q~meta_no19_sort$cell_short,permutations=999)
+
+Loc_anosim<-anosim(q,meta_no19_sort$Location,permutations=999)
+cell_anosim<-anosim(q,meta_no19_sort$cell,permutations=999)
+date_anosim<-anosim(q,meta_no19_sort$Date_of_Sample,permutations=999)
+cell_s_anosim<-anosim(q,meta_no19_sort$cell_short,permutations=999)
+
+##############################################################
+sample_sum_df <- data.frame(sum = sample_sums(ps))
+sample_sum_meta<-merge(sample_sum_df, meta_no19_sort, by=0, all=TRUE)
+ggplot(sample_sum_df, aes(x = sum)) + 
+  geom_histogram(color = "black", fill = "indianred", binwidth = 2500) +
+  ggtitle("Distribution of sample sequencing depth") + 
+  xlab("Read counts") +
+  theme(axis.title.y = element_blank())
+smin <- min(sample_sums(ps))
+smean <- mean(sample_sums(ps))
+smax <- max(sample_sums(ps))
+ggplot(data=sample_sum_meta, aes(x=Sample_Reason_Short, y=sum))+ggtitle("Sample sequencing depth")+
+  geom_bar(stat="identity")+coord_flip()+ylab("Read counts")+xlab("Sample")+ theme_grey(base_size = 18) 
