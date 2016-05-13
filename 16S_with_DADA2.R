@@ -63,11 +63,15 @@ meta <- read.csv("~/Documents/andy/fastq/meta_no19.csv", row.names=1) #csv with 
 meta$cell_short<-substr(meta$cell,1,1)#add short version of cell
 #invoke phyloseq
 ps <- phyloseq(otu_table(seqtab.nochim, taxa_are_rows=FALSE), 
-               sample_data(meta2), 
+               sample_data(meta), 
                tax_table(taxa_gg))
+
+ps <- phyloseq(otu_table(seqtab_nochim_gg, taxa_are_rows=FALSE), 
+               sample_data(meta_no19_sort), 
+               tax_table(taxa))
 #plot alpha diversity
-p=plot_richness(ps, measures=c("Shannon", "Simpson"), color="Reason_for_Sample") + theme_bw()
-p+ geom_point(size=5, alpha = 0.7)
+p=plot_richness(ps, measures=c("Shannon", "Simpson"), color="Location") + theme_bw()
+p+ geom_point(size=5, alpha = 0.7) + geom_text(mapping=aes(label=cell), vjust = 2.0)
 
 #make a tree for unifrac
 tree=rtree(ntaxa(ps), rooted = TRUE, tip.label = taxa_names(ps))
@@ -78,12 +82,12 @@ ps1 <- prune_samples(sample_sums(ps1)>=7000, ps1)
 #rarify for beta diversity
 eso = rarefy_even_depth(ps1)
 #perform ordination
-ordu = ordinate(ps1, "PCoA", "unifrac", weighted=TRUE)
+ordu1 = ordinate(ps1, "PCoA", "unifrac", weighted=TRUE)
 #p=plot_ordination(ps1, ordu, color = "Location", shape = "seed_or_sample", label="cell", title = "PCoA of unweighted unifrac distance matrix, untrimmed data")
 #p+ geom_point(size=5, alpha = 0.7) 
 
 #plot ordination
-p=plot_ordination(eso, ordu, color = "Location", shape = "seed_or_sample",  title = "PCoA of weighted unifrac distance matrix, rarified data")
+p=plot_ordination(eso, ordu1, color = "Location", shape = "seed_or_sample",  title = "PCoA of weighted unifrac distance matrix, rarified data")
 p + geom_point(size=5, alpha = 0.7) + geom_text(mapping=aes(label=cell), vjust = 2.0)
 
 #p + theme_bw() + geom_text(mapping = aes(label = cell), size = 10, vjust = 1.5) theme(text = element_text(size = 16)) + geom_point(size = 4)
@@ -180,3 +184,72 @@ smean <- mean(sample_sums(ps))
 smax <- max(sample_sums(ps))
 ggplot(data=sample_sum_meta, aes(x=Sample_Reason_Short, y=sum))+ggtitle("Sample sequencing depth")+
   geom_bar(stat="identity")+coord_flip()+ylab("Read counts")+xlab("Sample")+ theme_grey(base_size = 18) 
+################################################################
+#let's look at Bacteria only
+ps_bac = subset_taxa(ps, Kingdom=="k__Bacteria")
+p=plot_richness(ps, measures=c("Shannon", "Observed"), color="Location") + theme_bw()
+p+ geom_point(size=5, alpha = 0.7) + geom_text(mapping=aes(label=cell), vjust = 2.0)
+
+#make a tree for unifrac
+tree=rtree(ntaxa(ps_bac), rooted = TRUE, tip.label = taxa_names(ps_bac))
+#add tree to phyloseq object
+ps_bac=merge_phyloseq(ps_bac,tree)
+#remove sample 19, which only had 6000 sequences
+ps3 <- prune_samples(sample_sums(ps2)>=7000, ps1)
+#rarify for beta diversity
+eso_bac = rarefy_even_depth(ps_bac)
+#perform ordination
+ordu = ordinate(eso_bac, "PCoA", "unifrac", weighted=TRUE)
+#p=plot_ordination(ps1, ordu, color = "Location", shape = "seed_or_sample", label="cell", title = "PCoA of unweighted unifrac distance matrix, untrimmed data")
+#p+ geom_point(size=5, alpha = 0.7) 
+
+#plot ordination
+p=plot_ordination(eso_bac, ordu, color = "Location", shape = "seed_or_sample",  title = "PCoA of weighted unifrac distance matrix, bacteria only, rarified data")
+p + geom_point(size=5, alpha = 0.7) + geom_text(mapping=aes(label=cell), vjust = 2.0)
+
+#p + theme_bw() + geom_text(mapping = aes(label = cell), size = 10, vjust = 1.5) theme(text = element_text(size = 16)) + geom_point(size = 4)
+
+
+#Previous results were with the raw output from dada2.  Next test is to trim data before ordination.  Not sure I need to do much besides rarify but we'll see.
+#Remove OTUs that do not show appear more than 5 times in more than half the samples
+wh0 = genefilter_sample(eso_bac, filterfun_sample(function(x) x > 5), A = 0.5 * nsamples(eso_bac))
+
+
+
+ps2= prune_taxa(wh0, eso_bac)
+#Transform sample counts to relative abundance.
+ps2 = transform_sample_counts(ps2, function(x) 1e+06 * x/sum(x))
+#ps2 = transform_sample_counts(ps1, function(x) 1e+06 * x/sum(x)) #run this insead of prev line if you don't want to remove rare taxa
+#Keep only the most abundant nine phyla.
+phylum.sum = tapply(taxa_sums(ps2), tax_table(ps2)[, "Phylum"], sum, na.rm = TRUE) #run to limit phyla
+top9phyla = names(sort(phylum.sum, TRUE))[1:9] #run to limit phyla
+ps2 = prune_taxa((tax_table(ps2)[, "Phylum"] %in% top9phyla), ps2) #run to limit phyla
+#perform ordination and plot results
+ordu = ordinate(ps2, "PCoA", "unifrac", weighted=TRUE)
+q=plot_ordination(ps2, ordu, color = "Location", shape = "seed_or_sample",  title = "PCoA of weighted unifrac distance matrix, rarified/rare seq removed data")
+q + geom_point(size=5, alpha = 0.7) + geom_text(mapping=aes(label=cell), vjust = 2.0)
+
+
+#code below looks at multiple ordination methods.  Need to make output prettier.
+dist = "wunifrac"
+ord_meths = c("DCA", "CCA", "RDA", "DPCoA", "NMDS", "MDS", "PCoA")
+plist = llply(as.list(ord_meths), function(i, physeq, dist) {
+  ordi = ordinate(physeq, method = i, distance = dist)
+  plot_ordination(physeq, ordi, "samples", color = "Location", shape = "Date_of_Sample", label = "cell")
+}, eso2, dist)
+names(plist) <- ord_meths
+
+pdataframe = ldply(plist, function(x) {
+  df = x$data[, 1:3]
+  colnames(df) = c("Axis_1", "Axis_2", "Axis_3")
+  return(cbind(df, x$data))
+})
+names(pdataframe)[1] = "method"
+
+p = ggplot(pdataframe, aes(Axis_1, Axis_2, color = Location, shape = Date_of_Sample, 
+                           label = cell))
+p = p + geom_point(size = 4)# + geom_polygon()
+p = p + facet_wrap(~method, scales = "free")
+p = p + scale_fill_brewer(type = "qual", palette = "Set1")
+p = p + scale_colour_brewer(type = "qual", palette = "Set1")
+p
