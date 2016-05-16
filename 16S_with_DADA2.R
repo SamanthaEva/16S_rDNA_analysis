@@ -253,3 +253,18 @@ p = p + facet_wrap(~method, scales = "free")
 p = p + scale_fill_brewer(type = "qual", palette = "Set1")
 p = p + scale_colour_brewer(type = "qual", palette = "Set1")
 p
+
+eso2 = transform_sample_counts(eso_bac, function(x) 1e+06 * x/sum(x))
+ufrac<-UniFrac(eso2, weighted=TRUE, normalized=TRUE, parallel=FALSE, fast=TRUE)
+q=as.matrix(ufrac)
+
+Loc_adonis<-adonis(q~meta_no19_sort$Location,permutations=999)
+cell_adonis<-adonis(q~meta_no19_sort$cell,permutations=999)
+date_adonis<-adonis(q~meta_no19_sort$Date_of_Sample,permutations=999)
+cell_s_adonis<-adonis(q~meta_no19_sort$cell_short,permutations=999)
+
+Loc_anosim<-anosim(q,meta_no19_sort$Location,permutations=999)
+cell_anosim<-anosim(q,meta_no19_sort$cell,permutations=999)
+date_anosim<-anosim(q,meta_no19_sort$Date_of_Sample,permutations=999)
+cell_s_anosim<-anosim(q,meta_no19_sort$cell_short,permutations=999)
+
